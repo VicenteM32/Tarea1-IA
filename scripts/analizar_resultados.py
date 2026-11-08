@@ -1,16 +1,12 @@
 """
-Análisis de los resultados del benchmark (Tarea 1 de IA - Escape de las Torres).
-
+Análisis de los resultados del benchmark 
 Lee el CSV generado por benchmark.py y produce:
   - resumen_estadisticas.csv      (una fila por mapa x algoritmo)
   - comparaciones_pareadas.csv    (diferencias de supervivencia entre algoritmos)
-  - figuras/*.png                 (gráficos para el informe)
-  - datos_informe.json            (todos los números que usa el informe)
-
+  - figuras/*.png                 (gráficos)
+  - datos_informe.json            (números para el informe)
 Solo se usan las iteraciones completas para los 3 mapas y los 5 algoritmos, de modo
-que todas las configuraciones se comparan sobre exactamente las mismas instancias.
-
-Uso: python3 analizar_resultados.py [resultados_benchmark.csv]
+que todas las configuraciones se comparan sobre exactamente las mismas instancias
 """
 import inspect
 import json
@@ -24,11 +20,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import agente as modulo_agente
-import benchmark as bm
+from pathlib import Path
+RAIZ = Path(__file__).resolve().parents[1]
+if __package__ in (None, ''):
+    sys.path.insert(0, str(RAIZ))
+from src import agente as modulo_agente
+from scripts import benchmark as bm
 
-ARCHIVO = sys.argv[1] if len(sys.argv) > 1 else 'resultados_benchmark.csv'
-B = 5000                      # remuestreos bootstrap
+
+#ARCHIVO = sys.argv[1] if len(sys.argv) > 1 else 'resultados_benchmark.csv'
+RESULTADOS = RAIZ / "resultados"
+FIGURAS = RAIZ / "figuras"
+RESULTADOS.mkdir(parents=True, exist_ok=True)
+FIGURAS.mkdir(parents=True, exist_ok=True)
+ARCHIVO = (
+    Path(sys.argv[1])
+    if len(sys.argv) > 1
+    else RESULTADOS / "resultados_benchmark.csv")
+if not ARCHIVO.is_file():
+    sys.exit(f"No se encontró el CSV <{ARCHIVO}>")
+
+B = 5000 # remuestreos bootstrap
 rng = np.random.default_rng(2026)
 
 ORDEN = list(bm.ALGORITMOS)   # bfs, ucs, greedy, astar, genetico
@@ -36,10 +48,9 @@ ETQ = {'bfs': 'BFS', 'ucs': 'UCS', 'greedy': 'Greedy', 'astar': 'A*', 'genetico'
 MAPAS = {1: 'Mapa 1 (Alta densidad)', 2: 'Mapa 2 (Media densidad)', 3: 'Mapa 3 (Baja densidad)'}
 COLORES = {'bfs': '#4C72B0', 'ucs': '#55A868', 'greedy': '#C44E52', 'astar': '#8172B2', 'genetico': '#CCB974'}
 
-os.makedirs('figuras', exist_ok=True)
 plt.rcParams.update({'font.size': 10, 'axes.grid': True, 'grid.alpha': 0.3, 'axes.axisbelow': True})
 
-# ---------------------------------------------------------------- datos ----
+# datos 
 df = pd.read_csv(ARCHIVO)
 df['tiempo_despeje'] = pd.to_numeric(df['tiempo_despeje'], errors='coerce')
 
@@ -68,7 +79,7 @@ def ic_boot_tasa(surv, agentes):
     return [float(x) * 100 for x in np.percentile(tasas, [2.5, 97.5])]
 
 
-# ---------------------------------------------------- estadísticas por config
+# estadísticas por config
 filas = []
 for m in MAPAS:
     for a in ORDEN:
@@ -98,9 +109,9 @@ for m in MAPAS:
             'cpu_mediana_ms': float(np.median(cpu) * 1000),
         })
 resumen = pd.DataFrame(filas)
-resumen.to_csv('resumen_estadisticas.csv', index=False)
+resumen.to_csv(RESULTADOS / "resumen_estadisticas.csv", index=False)
 
-# ------------------------------------------------ comparaciones pareadas ----
+# comparaciones pareadas 
 PARES = [('ucs', 'bfs'), ('greedy', 'bfs'), ('astar', 'bfs'), ('genetico', 'bfs'), ('genetico', 'astar')]
 pareadas = []
 for m in MAPAS:
@@ -116,9 +127,9 @@ for m in MAPAS:
             'dif_media_pp': float(d.mean() * 100), 'ic95_lo': lo, 'ic95_hi': hi,
             'significativa': bool(lo > 0 or hi < 0),
         })
-pd.DataFrame(pareadas).to_csv('comparaciones_pareadas.csv', index=False)
+pd.DataFrame(pareadas).to_csv(RESULTADOS / "comparaciones_pareadas.csv", index=False)
 
-# --------------------------------------- instancias sin solución práctica ----
+# --- instancias sin solución práctica ----
 sin_solucion = {}
 for m in MAPAS:
     piv = df[df.tipo_mapa == m].pivot(index='iteracion', columns='algoritmo', values='sobrevivientes')
@@ -126,7 +137,7 @@ for m in MAPAS:
     exactos_cero = int((piv[['bfs', 'ucs', 'astar']] == 0).all(axis=1).sum())
     sin_solucion[m] = {'todos_cero': todos_cero, 'exactos_cero': exactos_cero, 'n': int(len(piv))}
 
-# ------------------------------------------------------------- parámetros ----
+# --- parámetros ----
 firma = inspect.signature(modulo_agente.Agente._buscar_ruta_genetico)
 ga = {k: v.default for k, v in firma.parameters.items() if v.default is not inspect._empty}
 codigo = inspect.getsource(modulo_agente.Agente._buscar_ruta_genetico)
@@ -144,10 +155,10 @@ datos = {
     'pareadas': pareadas,
     'sin_solucion': {str(k): v for k, v in sin_solucion.items()},
 }
-with open('datos_informe.json', 'w', encoding='utf-8') as f:
+with open(RESULTADOS / 'datos_informe.json', 'w', encoding='utf-8') as f:
     json.dump(datos, f, ensure_ascii=False, indent=2)
 
-# ---------------------------------------------------------------- figuras ----
+# figuras
 x = np.arange(len(MAPAS))
 ancho = 0.15
 etq_x = [f"Mapa {m}\n({['Alta', 'Media', 'Baja'][m - 1]} densidad)" for m in MAPAS]
@@ -169,7 +180,7 @@ ax.set_ylabel('Tasa de supervivencia (%)')
 ax.set_xticks(x); ax.set_xticklabels(etq_x); ax.set_ylim(0, 100)
 ax.set_title(f'Tasa de supervivencia por algoritmo y mapa ({n_iter} corridas c/u, IC 95%)')
 ax.legend(ncol=5, loc='upper center', bbox_to_anchor=(0.5, -0.12), frameon=False)
-fig.tight_layout(); fig.savefig('figuras/supervivencia.png', dpi=150); plt.close(fig)
+fig.tight_layout(); fig.savefig(FIGURAS / 'supervivencia.png', dpi=150); plt.close(fig)
 
 # 2) Tiempo de despeje (media ± desv. estándar)
 fig, ax = plt.subplots(figsize=(9, 5))
@@ -181,7 +192,7 @@ ax.set_ylabel('Turnos hasta el último sobreviviente (media ± desv. estándar)'
 ax.set_xticks(x); ax.set_xticklabels(etq_x)
 ax.set_title('Tiempo de despeje por algoritmo y mapa')
 ax.legend(ncol=5, loc='upper center', bbox_to_anchor=(0.5, -0.12), frameon=False)
-fig.tight_layout(); fig.savefig('figuras/tiempo_despeje.png', dpi=150); plt.close(fig)
+fig.tight_layout(); fig.savefig(FIGURAS / 'tiempo_despeje.png', dpi=150); plt.close(fig)
 
 # 3) Distribución del tiempo de despeje (diagramas de caja)
 fig, axes = plt.subplots(1, 3, figsize=(11, 4.3), sharey=True)
@@ -195,7 +206,7 @@ for ax, m in zip(axes, MAPAS):
     ax.set_title(MAPAS[m], fontsize=10)
     ax.tick_params(axis='x', labelsize=8)
 axes[0].set_ylabel('Turnos hasta el último sobreviviente')
-fig.tight_layout(); fig.savefig('figuras/distribucion_tiempo.png', dpi=150); plt.close(fig)
+fig.tight_layout(); fig.savefig(FIGURAS / 'distribucion_tiempo.png', dpi=150); plt.close(fig)
 
 # 4) Costo computacional (CPU, escala logarítmica)
 fig, ax = plt.subplots(figsize=(9, 5))
@@ -207,9 +218,9 @@ ax.set_ylabel('Tiempo de CPU por simulación (ms, escala log)')
 ax.set_xticks(x); ax.set_xticklabels(etq_x)
 ax.set_title('Costo computacional por algoritmo y mapa')
 ax.legend(ncol=5, loc='upper center', bbox_to_anchor=(0.5, -0.12), frameon=False)
-fig.tight_layout(); fig.savefig('figuras/costo_computacional.png', dpi=150); plt.close(fig)
+fig.tight_layout(); fig.savefig(FIGURAS / 'costo_computacional.png', dpi=150); plt.close(fig)
 
-# ------------------------------------------------------ resumen por pantalla ----
+# --- resumen por pantalla ----
 pd.set_option('display.width', 250)
 pd.set_option('display.max_columns', 30)
 cols = ['mapa', 'algoritmo', 'n_corridas', 'tasa_supervivencia', 'ic95_lo', 'ic95_hi', 'corridas_sin_sobrevivientes',

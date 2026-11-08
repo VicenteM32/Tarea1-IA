@@ -1,7 +1,11 @@
 import time
 import os
-from entorno import Entorno
-from agente import Agente
+if __package__:
+    from .entorno import Entorno
+    from .agente import Agente
+else:
+    from entorno import Entorno
+    from agente import Agente
 
 
 def limpiar_pantalla():
@@ -118,6 +122,6 @@ if __name__ == "__main__":
         agentes=lista_agentes,
         algoritmo_usado=ALGORITMO_A_PROBAR,
         turnos_propagacion_fuego=4,
-        animar=True,  # Cambia a False si solo quieres ver el resultado final rápido
+        animar=True,  # Cambia a False si se quiere saltar la animación
         max_turnos=500,
     )

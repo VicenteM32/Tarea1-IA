@@ -1,5 +1,5 @@
 """
-Benchmark de la Tarea 1 de IA (Escape de las Torres).
+Benchmark:
 
 Corre, para cada combinación (mapa x algoritmo), N iteraciones con variaciones
 estocásticas: distribución de obstáculos, posición inicial del fuego y posición
@@ -7,8 +7,7 @@ inicial del grupo de agentes.
 
 Las instancias son LAS MISMAS para todos los algoritmos: la semilla depende solo
 del mapa y del número de iteración. Así los algoritmos se comparan de forma pareada
-sobre escenarios idénticos (marco experimental controlado).
-
+sobre escenarios idénticos.
 Por cada corrida se registra:
   - sobrevivientes / bajas / atrapados (vivos que no alcanzaron a evacuar al
     llegar al límite de turnos)
@@ -20,11 +19,6 @@ Por cada corrida se registra:
 
 Las corridas se agregan al CSV de salida iteración por iteración y el script es
 reanudable: si se interrumpe, al volver a lanzarlo omite lo que ya está en el CSV.
-
-Ejemplos:
-    python3 benchmark.py                          # 3 mapas x 5 algoritmos x 80 iteraciones
-    python3 benchmark.py --hasta 200              # 200 iteraciones
-    python3 benchmark.py --mapa 2 --algo astar --hasta 50 --salida prueba.csv
 """
 import argparse
 import contextlib
@@ -35,9 +29,14 @@ import random
 import sys
 import time
 
-from entorno import Entorno
-from agente import Agente
-from main import simular_evacuacion
+from pathlib import Path
+RAIZ = Path(__file__).resolve().parents[1]
+if __package__ in (None, ''):
+    sys.path.insert(0, str(RAIZ))
+from src.entorno import Entorno
+from src.agente import Agente
+from src.main import simular_evacuacion
+
 
 # --- Configuración del experimento ---
 FILAS = 20
@@ -126,8 +125,9 @@ def main():
     ap.add_argument('--desde', type=int, default=0, help="primera iteración (por defecto 0)")
     ap.add_argument('--hasta', type=int, default=ITERACIONES_POR_DEFECTO,
                     help=f"última iteración, exclusiva (por defecto {ITERACIONES_POR_DEFECTO})")
-    ap.add_argument('--salida', default='resultados_benchmark.csv', help="CSV de salida")
+    ap.add_argument('--salida', type=Path, default=RAIZ / 'resultados' / 'resultados_benchmark.csv', help="CSV de salida",)
     args = ap.parse_args()
+    args.salida.parent.mkdir(parents=True, exist_ok=True)
 
     mapas = [args.mapa] if args.mapa else list(MAPAS)
     algos = [args.algo] if args.algo else list(ALGORITMOS)
